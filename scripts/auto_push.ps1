@@ -1,14 +1,14 @@
 ﻿# 定时把仓库快照提交并推送到 git@github.com:Honey-Xin/aiquant.git
 #
-# 用法：
-#   pwsh -File scripts/auto_push.ps1                 # 有变更才提交
-#   pwsh -File scripts/auto_push.ps1 -Message "xxx"  # 自定义提交信息
-#   pwsh -File scripts/auto_push.ps1 -NoPush         # 只提交不推送（演练）
+# 用法（Windows PowerShell 5.1 与 PowerShell 7 均可）：
+#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\auto_push.ps1
+#   ... -Message "自定义提交信息"     # 自定义提交信息
+#   ... -NoPush                      # 只提交不推送（演练）
 #
 # 行为：
 #   * 仓库根 = 本脚本的上一级目录；不是 git 仓库则先 init 并设置 origin；
-#   * 只提交源码/文档/配置（.gitignore 已排除 .env、日志、缓存、数据）；
-#   * 推送失败重试 3 次（指数退避），优先 --rebase --autostash 拉取再推；
+#   * 只提交源码/文档/配置（.gitignore 已排除 .env、日志、缓存、演示数据）；
+#   * 推送失败重试 3 次（指数退避），每次先 --rebase --autostash 同步远端；
 #   * 全过程写日志 logs/auto_push.log（logs/ 已被忽略，不会自己提交自己）。
 
 [CmdletBinding()]
@@ -20,7 +20,7 @@ param(
     [string]$Branch = "main"
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $repo = Split-Path -Parent $PSScriptRoot
 Set-Location $repo
 
@@ -34,31 +34,43 @@ function Write-Log([string]$text) {
     Write-Host $line
 }
 
+# 执行 git 并同时拿到 stdout/stderr 与退出码（PS 5.1 下 stderr 不会中断脚本）
+function Invoke-Git {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$GitArgs)
+    $out = (& git @GitArgs 2>&1 | Out-String)
+    $code = $LASTEXITCODE
+    return [pscustomobject]@{ Code = $code; Output = $out.Trim() }
+}
+
 if (-not $Message) {
     $Message = "chore(auto): snapshot {0}" -f (Get-Date -Format "yyyy-MM-dd HH:mm")
 }
 
-if (-not (Test-Path (Join-Path $repo ".git"))) {
+$state = Invoke-Git rev-parse --is-inside-work-tree
+if ($state.Code -ne 0 -or $state.Output -ne "true") {
     Write-Log "git init（首次运行）"
-    git init | Out-Null
-    git symbolic-ref HEAD "refs/heads/$Branch"
-    git remote add origin $Remote
+    Invoke-Git init | Out-Null
+    Invoke-Git symbolic-ref HEAD "refs/heads/$Branch" | Out-Null
+    Invoke-Git remote add origin $Remote | Out-Null
 }
-elseif (-not (git remote get-url origin 2>$null)) {
-    git remote add origin $Remote
+else {
+    $url = Invoke-Git remote get-url origin
+    if ($url.Code -ne 0) {
+        Invoke-Git remote add origin $Remote | Out-Null
+    }
 }
 
-$changes = git status --porcelain
-if (-not $changes) {
+$status = Invoke-Git status --porcelain
+if (-not $status.Output) {
     Write-Log "无变更，跳过"
     exit 0
 }
 
-git add -A
-git -c user.name="aiquant-bot" -c user.email="aiquant-bot@users.noreply.git" commit -m $Message | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    Write-Log "提交失败（exit=$LASTEXITCODE）"
-    exit $LASTEXITCODE
+Invoke-Git add -A | Out-Null
+$commit = Invoke-Git -c user.name=aiquant-bot -c user.email=aiquant-bot@users.noreply.git commit -m $Message
+if ($commit.Code -ne 0) {
+    Write-Log ("提交失败（exit={0}）：{1}" -f $commit.Code, $commit.Output)
+    exit $commit.Code
 }
 Write-Log ("已提交：{0}" -f $Message)
 
@@ -68,13 +80,19 @@ if ($NoPush) {
 }
 
 for ($i = 1; $i -le $Retries; $i++) {
-    git push -u origin $Branch 2>&1 | ForEach-Object { Write-Log "  push: $_" }
-    if ($LASTEXITCODE -eq 0) {
-        Write-Log "推送成功（第 $i 次尝试）"
+    $push = Invoke-Git push -u origin $Branch
+    foreach ($line in ($push.Output -split "`r?`n")) {
+        if ($line.Trim()) { Write-Log ("  push: {0}" -f $line.Trim()) }
+    }
+    if ($push.Code -eq 0) {
+        Write-Log ("推送成功（第 {0} 次尝试）" -f $i)
         exit 0
     }
-    Write-Log "推送失败（第 $i 次），先尝试 rebase 同步远端"
-    git pull --rebase --autostash origin $Branch 2>&1 | ForEach-Object { Write-Log "  pull: $_" }
+    Write-Log ("推送失败（第 {0} 次，exit={1}），尝试 rebase 同步远端" -f $i, $push.Code)
+    $pull = Invoke-Git pull --rebase --autostash origin $Branch
+    foreach ($line in ($pull.Output -split "`r?`n")) {
+        if ($line.Trim()) { Write-Log ("  pull: {0}" -f $line.Trim()) }
+    }
     Start-Sleep -Seconds ([math]::Min(60, [math]::Pow(2, $i) * 5))
 }
 
