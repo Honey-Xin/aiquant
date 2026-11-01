@@ -99,4 +99,15 @@ python -m aiquant.validation.cli `
 | 每 30s | 写 `system:label_service_heartbeat`（TTL 60） | `LabelService.heartbeat` |
 | 每 60s | 为每个交易对生成并发布标签 | `LabelService.run_cycle` |
 | 每天 03:10 | 清理超期审计分片 | `AuditLog.purge_old` |
-| 每 10 分钟 | 提交并推送代码快照到远端 | `scripts/auto_push.ps1` |
+| 每 10 分钟 | 提交并推送代码快照到远端 | 计划任务 `aiquant-autopush` → `scripts/auto_push.ps1` |
+
+注册/刷新计划任务：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_tasks.ps1
+schtasks /Query /TN aiquant-autopush /FO LIST      # 查看下次执行时间
+schtasks /Run   /TN aiquant-autopush               # 立即演练一次
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_tasks.ps1 -Remove   # 卸载
+```
+
+推送日志在 `logs/auto_push.log`；无变更时脚本直接跳过，不会产生空提交。

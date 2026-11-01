@@ -55,6 +55,19 @@ docker compose --profile p0 up -d      # P0：守门闭环
 docker compose --profile p1 up -d      # P1：加 Freqtrade 守护与自动恢复
 ```
 
+### 自动化运维（Windows 计划任务）
+
+```powershell
+# 注册：aiquant-autopush 每 10 分钟提交并推送；aiquant-audit-purge 每天 03:10 清理旧审计
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_tasks.ps1
+# 演练 / 手工推送
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\auto_push.ps1
+# 卸载
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_tasks.ps1 -Remove
+```
+
+推送日志：`logs/auto_push.log`；远端：`git@github.com:Honey-Xin/aiquant.git`（分支 `main`）。
+
 ## 3. 裁决语义（FR-2.2，顺序不可调换）
 
 | 步骤 | 条件 | 结果 | 审计 `result` |
