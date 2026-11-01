@@ -97,7 +97,7 @@ config/                  # freqtrade + labels 配置、Prometheus 告警规则
 docker/                  # 两个服务的 Dockerfile
 docs/                    # 需求副本、架构、运维手册、验收对照
 scripts/                 # 自动提交推送、演示数据等
-tests/                   # 299 个用例，覆盖率 94%
+tests/                   # 306 个用例，覆盖率 94.28%
 ```
 
 ## 5. 关键约束（勿改）

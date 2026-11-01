@@ -3,7 +3,7 @@
 运行方式：
 
 ```powershell
-python -m pytest -q                              # 299 个用例
+python -m pytest -q                              # 306 个用例
 python -m pytest --cov=aiquant --cov-report=term-missing   # 覆盖率 94.14%（门槛 90%）
 ```
 
