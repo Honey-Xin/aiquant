@@ -1,4 +1,4 @@
-# 定时把仓库快照提交并推送到 git@github.com:Honey-Xin/aiquant.git
+﻿# 定时把仓库快照提交并推送到 git@github.com:Honey-Xin/aiquant.git
 #
 # 用法：
 #   pwsh -File scripts/auto_push.ps1                 # 有变更才提交
