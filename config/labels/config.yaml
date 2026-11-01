@@ -1,0 +1,62 @@
+# ===========================================================================
+# AI 标签域配置（研究域）：只读数据源 + LLM + 标签写入
+# 本文件不包含任何交易凭证。密钥一律走环境变量。
+# ===========================================================================
+label_service:
+  # 标签生成周期（秒）；对应 FR-1.2 默认 60 秒
+  cycle_sec: 60
+  # 每个标签的 TTL（秒），写入 Redis 时与标签内 ttl_sec 一致
+  ttl_sec: 300
+  heartbeat:
+    interval_sec: 30
+    ttl_sec: 60
+  pairs:
+    - "BTC/USDT"
+    - "ETH/USDT"
+    - "SOL/USDT"
+  # schema 校验失败后的重试次数（固定 1 次，见 FR-1.2）
+  schema_retry: 1
+
+sources:
+  okx_mcp:
+    enabled: true
+    # 只读 MCP：命令必须以 --read-only 结尾，启动自检会校验
+    cmd: "okx-trade-mcp --read-only"
+    timeout_sec: 15
+    # 读数项的采集清单
+    collections:
+      - ticker
+      - funding_rate
+      - open_interest
+      - orderbook_depth
+      - news
+  news:
+    enabled: false
+    provider: cryptopanic
+    url: "https://cryptopanic.com/api/v1/posts/"
+    timeout_sec: 10
+    max_items: 20
+    filter_currencies: ["BTC", "ETH", "SOL"]
+  # 可选源：未配置时不阻塞主流程
+  onchain:
+    enabled: false
+  event_calendar:
+    enabled: false
+
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  base_url: "https://api.deepseek.com"
+  timeout_sec: 30
+  max_tokens: 900
+  temperature: 0.0
+  # 严格 JSON：禁止任何自然语言前后缀
+  response_format: json_object
+
+gate_reading_contract:
+  # 执行域只读的 key 模板
+  key_template: "ai_gate:{pair}"
+  halt_key: "system:halt"
+  heartbeat_key: "system:label_service_heartbeat"
+  # 标签为建议性输入：缺失/异常默认放行
+  fail_open: true

@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools==75.6.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aiquant"
+version = "1.0.0"
+description = "AI quant trading gatekeeper for OKX: AI writes labels only, Freqtrade decides, CLI executes"
+requires-python = ">=3.11,<3.14"
+readme = "README.md"
+license = { text = "Proprietary" }
+dependencies = [
+  "fastapi==0.115.6",
+  "uvicorn[standard]==0.34.0",
+  "pydantic==2.10.4",
+  "pydantic-settings==2.7.1",
+  "redis==5.2.1",
+  "httpx==0.28.1",
+  "PyYAML==6.0.2",
+  "numpy==2.2.1",
+  "pandas==2.2.3",
+  "python-dateutil==2.9.0.post0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==8.3.4",
+  "pytest-cov==6.0.0",
+  "fakeredis==2.26.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+filterwarnings = ["error::DeprecationWarning:aiquant.*"]
+
+[tool.coverage.run]
+source = ["src/aiquant"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true

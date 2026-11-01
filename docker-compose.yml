@@ -1,0 +1,119 @@
+# ===========================================================================
+# AI 量化交易守门员 - 一条命令启动 P0/P1 最小集
+#   docker compose --profile p0 up -d      # 仅执行域（无 AI）
+#   docker compose --profile p1 up -d      # 执行域 + 只读标签服务 + 守门服务
+# 镜像 tag 全部锁定，禁止 latest。
+# ===========================================================================
+name: aiquant
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  redis:
+    image: redis:7.4.1-alpine
+    container_name: aiquant-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "300", "1"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [aiquant-net]
+    logging: *default-logging
+
+  label-service:
+    profiles: ["p1"]
+    build:
+      context: .
+      dockerfile: docker/label-service.Dockerfile
+    image: aiquant-label-service:1.0.0
+    container_name: aiquant-label-service
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      AUDIT_LOG_DIR: /app/logs
+    volumes:
+      - ./config/labels:/app/config/labels:ro
+      - ./logs/label:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8081/health',timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 6s
+      retries: 3
+      start_period: 30s
+    networks: [aiquant-net]
+    logging: *default-logging
+
+  gate-service:
+    profiles: ["p1"]
+    build:
+      context: .
+      dockerfile: docker/gate-service.Dockerfile
+    image: aiquant-gate-service:1.0.0
+    container_name: aiquant-gate-service
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      LABEL_SERVICE_URL: http://label-service:8081
+      FREQTRADE_API_URL: http://freqtrade:8080
+      GATE_PORT: "8080"
+      AUDIT_LOG_DIR: /app/logs
+    volumes:
+      - ./logs/gate:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: [aiquant-net]
+    logging: *default-logging
+
+  freqtrade:
+    profiles: ["p0", "p1"]
+    image: freqtradeorg/freqtrade:2024.11
+    container_name: aiquant-freqtrade
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      PYTHONPATH: /freqtrade/src
+      AUDIT_LOG_DIR: /freqtrade/logs
+    command: >
+      trade
+      --config /freqtrade/config/freqtrade/config.json
+      --strategy AIGateStrategy
+      --strategy-path /freqtrade/src/aiquant/execution
+      --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite
+      --logfile /freqtrade/logs/freqtrade.log
+    volumes:
+      - ./config/freqtrade:/freqtrade/config/freqtrade:ro
+      - ./src:/freqtrade/src:ro
+      - ft-user-data:/freqtrade/user_data
+      - ./logs/freqtrade:/freqtrade/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8082:8080"
+    networks: [aiquant-net]
+    logging: *default-logging
+
+volumes:
+  redis-data:
+  ft-user-data:
+
+networks:
+  aiquant-net:
+    driver: bridge

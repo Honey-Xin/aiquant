@@ -1,0 +1,6 @@
+# ---------------------------------------------------------------------------
+# Execution域 only (P0). Installed inside the freqtrade image / venv.
+# The AI label side must never install these. API keys live here only.
+# ---------------------------------------------------------------------------
+freqtrade==2024.11
+ccxt==4.4.45

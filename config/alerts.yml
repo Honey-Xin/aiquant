@@ -1,0 +1,98 @@
+# ===========================================================================
+# Prometheus 告警规则（§12.3 必须提供）
+# 用法：把本文件挂载到 prometheus 的 rules 目录。
+# 指标来源：label-service:8081/metrics 与 gate-service:8080/metrics
+# ===========================================================================
+groups:
+  - name: aiquant-label-service
+    rules:
+      - alert: LabelServiceHeartbeatMissing
+        expr: time() - aiquant_label_heartbeat_age_seconds > 90
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "标签服务心跳丢失"
+          description: "system:label_service_heartbeat 已超过 90 秒未更新；执行域仍默认放行，但闸门已失效，需立即检查。"
+
+      - alert: LabelGenerationFailureHigh
+        expr: rate(aiquant_label_generation_failures_total[10m]) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "标签生成失败率升高"
+          description: "近 10 分钟标签生成失败率 > 0.2/s，检查 LLM 与数据源。"
+
+      - alert: LabelSchemaInvalid
+        expr: increase(aiquant_label_schema_invalid_total[30m]) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM 输出未通过 Schema 校验"
+          description: "30 分钟内 Schema 失败超过 3 次，已按 fail-open 写入 allow。"
+
+      - alert: LabelLatencyHigh
+        expr: histogram_quantile(0.95, rate(aiquant_label_generation_seconds_bucket[10m])) > 30
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "标签生成 P95 延迟 > 30s"
+
+  - name: aiquant-gate
+    rules:
+      - alert: GateErrorSpike
+        expr: increase(aiquant_gate_total{result="error"}[10m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "gate_error 激增"
+          description: "10 分钟内 gate_error 超过 5 次，闸门已退化为默认放行。"
+
+      - alert: GateBlockSpike
+        expr: increase(aiquant_gate_total{result="block"}[30m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "闸门大量拦截"
+          description: "30 分钟内 gate_block 超过 10 次，检查标签质量。"
+
+      - alert: GateDisabled
+        expr: aiquant_gate_enabled == 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "闸门被关闭"
+          description: "GATE_ENABLED=false 已持续 15 分钟，执行域等同于纯策略。"
+
+      - alert: FreqtradePausedTooLong
+        expr: aiquant_freqtrade_paused == 1
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Freqtrade 长时间暂停"
+          description: "交易已暂停超过 30 分钟，检查 system:halt 与守门服务日志。"
+
+      - alert: CliFailureRateHigh
+        expr: rate(aiquant_cli_calls_total{result="failure"}[15m]) / clamp_min(rate(aiquant_cli_calls_total[15m]), 0.001) > 0.2
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "OKX CLI 失败率上升"
+          description: "最近 15 分钟 CLI 失败率 > 20%，停止新开仓并人工介入。"
+
+      - alert: SystemHaltSet
+        expr: aiquant_system_halt == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "system:halt=1"
+          description: "存在 halt 标志，守门服务拒绝恢复交易。"

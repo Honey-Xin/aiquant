@@ -1,0 +1,42 @@
+# secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# runtime
+logs/
+data/*.csv
+data/*.jsonl
+data/history/*.json
+data/history/*.jl
+data/history/*.jsonl
+!data/history/.gitkeep
+reports/*.json
+reports/*.md
+!reports/.gitkeep
+*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# freqtrade runtime
+user_data/
+config/freqtrade/*.local.json
+
+# os
+.DS_Store
+Thumbs.db

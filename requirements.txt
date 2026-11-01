@@ -1,0 +1,15 @@
+# ---------------------------------------------------------------------------
+# AI Quant Gate - label service + gate service + validation deps (P1/P2/P3)
+# Every direct dependency is pinned. Do not use floating ranges here.
+# ---------------------------------------------------------------------------
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+redis==5.2.1
+httpx==0.28.1
+PyYAML==6.0.2
+numpy==2.2.1
+pandas==2.2.3
+prometheus-client==0.21.1
+python-dateutil==2.9.0.post0
