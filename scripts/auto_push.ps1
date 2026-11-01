@@ -34,10 +34,14 @@ function Write-Log([string]$text) {
     Write-Host $line
 }
 
-# 执行 git 并同时拿到 stdout/stderr 与退出码（PS 5.1 下 stderr 不会中断脚本）
+# 执行 git 并同时拿到 stdout/stderr 与退出码。
+# 经 cmd.exe 调用可避免 PS 5.1 把 git 的 stderr 包装成 NativeCommandError 噪声。
 function Invoke-Git {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$GitArgs)
-    $out = (& git @GitArgs 2>&1 | Out-String)
+    $quoted = ($GitArgs | ForEach-Object {
+            if ($_ -match '[\s"]') { '"{0}"' -f ($_ -replace '"', '\"') } else { $_ }
+        }) -join ' '
+    $out = (& cmd.exe /c ("git " + $quoted + " 2>&1") | Out-String)
     $code = $LASTEXITCODE
     return [pscustomobject]@{ Code = $code; Output = $out.Trim() }
 }
